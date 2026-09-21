@@ -137,7 +137,7 @@ const BGM_TRACKS = {
   },
   retro: {
     // High-energy '80s/'90s arcade: bright square arpeggios, punchy slap-style bass, crunchy drums, dramatic fill on the last phrase.
-    step: 0.155,
+    step: 0.21,
     lead: [
       329.63, 392, 493.88, 587.33, 493.88, 392, 329.63, 392, 493.88, 587.33, 493.88, 392, 329.63, 392, 493.88, 587.33,
       261.63, 329.63, 392, 523.25, 392, 329.63, 261.63, 329.63, 392, 523.25, 392, 329.63, 261.63, 329.63, 392, 523.25,
@@ -183,18 +183,20 @@ const BGM_TRACKS = {
       58.27, null, null, null, 58.27, null, null, null, 58.27, null, null, null, 58.27, null, null, null,
     ],
     leadType: "sawtooth",
-    leadGain: 0.024,
-    leadSustain: 1.8,
+    leadGain: 0.021,
+    leadSustain: 1.6,
+    leadFilter: 2600,
     lead2Type: "sine",
-    lead2Gain: 0.013,
-    lead2Sustain: 3.5,
+    lead2Gain: 0.012,
+    lead2Sustain: 3,
     bassType: "sawtooth",
-    bassGain: 0.05,
-    bassSustain: 3.2,
+    bassGain: 0.015,
+    bassSustain: 2.6,
+    bassFilter: 700,
     perc: [...DRUM_AAA_16, ...DRUM_AAA_CALM_16, ...DRUM_AAA_16, ...DRUM_AAA_CALM_16],
-    kickGain: 0.07,
-    hatGain: 0.022,
-    snareGain: 0.045,
+    kickGain: 0.05,
+    hatGain: 0.017,
+    snareGain: 0.032,
   },
   jarcade: {
     // High-energy Japanese arcade/rhythm-game: euphoric major hooks, rapid arpeggios, punchy funky bass, busy drums with a climax fill.
@@ -304,11 +306,21 @@ function syncMusicMuteButton() {
   musicMuteButton.setAttribute("aria-pressed", musicMuted ? "true" : "false");
 }
 
+let masterBus = null;
+
 function unlockAudio() {
   if (!audioCtx) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
     audioCtx = new AudioContextClass();
+    // Master limiter: keeps overlapping layers (lead + harmony + bass + drums) from clipping into a crackle.
+    masterBus = audioCtx.createDynamicsCompressor();
+    masterBus.threshold.setValueAtTime(-18, audioCtx.currentTime);
+    masterBus.knee.setValueAtTime(24, audioCtx.currentTime);
+    masterBus.ratio.setValueAtTime(8, audioCtx.currentTime);
+    masterBus.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    masterBus.release.setValueAtTime(0.15, audioCtx.currentTime);
+    masterBus.connect(audioCtx.destination);
   }
   if (audioCtx.state === "suspended") {
     audioCtx.resume();
@@ -328,7 +340,7 @@ function tone(freq, duration, type, gainValue, slideTo) {
   gain.gain.setValueAtTime(gainValue, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(masterBus);
   osc.start(now);
   osc.stop(now + duration + 0.02);
 }
@@ -362,16 +374,25 @@ function playPause() {
   tone(180, 0.08, "triangle", 0.05);
 }
 
-function bgmTone(freq, duration, type, gainValue, startTime) {
+function bgmTone(freq, duration, type, gainValue, startTime, filterCutoff) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, startTime);
   gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.015);
+  gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0008, startTime + duration);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  if (filterCutoff) {
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = filterCutoff;
+    filter.Q.value = 0.7;
+    osc.connect(filter);
+    filter.connect(gain);
+  } else {
+    osc.connect(gain);
+  }
+  gain.connect(masterBus);
   osc.start(startTime);
   osc.stop(startTime + duration + 0.02);
 }
@@ -398,7 +419,7 @@ function playKick(startTime, gainValue) {
   gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(masterBus);
   osc.start(startTime);
   osc.stop(startTime + 0.22);
 }
@@ -416,7 +437,7 @@ function playHat(startTime, gainValue) {
   gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.045);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(masterBus);
   noise.start(startTime);
   noise.stop(startTime + 0.045);
 }
@@ -434,7 +455,7 @@ function playSnare(startTime, gainValue) {
   noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.09);
   noise.connect(filter);
   filter.connect(noiseGain);
-  noiseGain.connect(audioCtx.destination);
+  noiseGain.connect(masterBus);
   noise.start(startTime);
   noise.stop(startTime + 0.09);
 
@@ -446,7 +467,7 @@ function playSnare(startTime, gainValue) {
   oscGain.gain.linearRampToValueAtTime(gainValue * 0.6, startTime + 0.004);
   oscGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.07);
   osc.connect(oscGain);
-  oscGain.connect(audioCtx.destination);
+  oscGain.connect(masterBus);
   osc.start(startTime);
   osc.stop(startTime + 0.08);
 }
@@ -459,17 +480,18 @@ function scheduleBgm() {
     const lead2 = track.lead2 ? track.lead2[i % track.lead2.length] : null;
     const bass = track.bass ? track.bass[i] : null;
     const perc = track.perc ? track.perc[i % track.perc.length] : null;
-    if (lead) bgmTone(lead, track.step * (track.leadSustain || 1.4), track.leadType, track.leadGain, bgmNextStepTime);
+    if (lead) bgmTone(lead, track.step * (track.leadSustain || 1.4), track.leadType, track.leadGain, bgmNextStepTime, track.leadFilter);
     if (lead2) {
       bgmTone(
         lead2,
         track.step * (track.lead2Sustain || track.leadSustain || 1.4),
         track.lead2Type || track.leadType,
         track.lead2Gain || track.leadGain,
-        bgmNextStepTime
+        bgmNextStepTime,
+        track.lead2Filter
       );
     }
-    if (bass) bgmTone(bass, track.step * (track.bassSustain || 3.4), track.bassType, track.bassGain, bgmNextStepTime);
+    if (bass) bgmTone(bass, track.step * (track.bassSustain || 3.4), track.bassType, track.bassGain, bgmNextStepTime, track.bassFilter);
     if (perc === "kick") playKick(bgmNextStepTime, track.kickGain || track.percGain || 0.08);
     if (perc === "hat") playHat(bgmNextStepTime, track.hatGain || track.percGain || 0.03);
     if (perc === "snare") playSnare(bgmNextStepTime, track.snareGain || track.percGain || 0.05);
