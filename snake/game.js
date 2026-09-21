@@ -675,6 +675,24 @@ function drawHead(part) {
   ctx.restore();
 }
 
+function drawTail(part, prevPart, fill) {
+  const tx = part.x - prevPart.x;
+  const ty = part.y - prevPart.y;
+  const angle = Math.atan2(ty, tx);
+  ctx.save();
+  ctx.translate(part.x * cell + cell / 2, part.y * cell + cell / 2);
+  ctx.rotate(angle);
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(-cell * 0.42, -cell * 0.3);
+  ctx.lineTo(-cell * 0.42, cell * 0.3);
+  ctx.quadraticCurveTo(cell * 0.1, cell * 0.16, cell * 0.5, 0);
+  ctx.quadraticCurveTo(cell * 0.1, -cell * 0.16, -cell * 0.42, -cell * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function draw(now) {
   ctx.fillStyle = "#08140d";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -697,12 +715,17 @@ function draw(now) {
   drawCell(food.x, food.y, "#ff5d7a", true);
 
   const hueShift = (now || 0) / 20;
+  const tailIndex = snake.length - 1;
   snake.forEach((part, i) => {
-    if (i === 0) return;
+    if (i === 0 || i === tailIndex) return;
     const t = i / Math.max(snake.length - 1, 1);
     const hue = (hueShift - i * 16) % 360;
     drawCell(part.x, part.y, `hsla(${hue}, 90%, 62%, ${1 - t * 0.45})`, false);
   });
+  if (tailIndex > 0) {
+    const tailHue = (hueShift - tailIndex * 16) % 360;
+    drawTail(snake[tailIndex], snake[tailIndex - 1], `hsla(${tailHue}, 90%, 62%, ${0.55})`);
+  }
   drawHead(snake[0]);
 }
 
