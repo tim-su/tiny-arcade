@@ -55,6 +55,10 @@ let snake;
 let dir;
 let queued;
 let food;
+let goldFood = null;
+let goldFoodExpiresAt = 0;
+let dietFood = null;
+let dietFoodExpiresAt = 0;
 let score;
 let best = Number(localStorage.getItem("snake-best") || 0);
 let playing = false;
@@ -351,6 +355,19 @@ function playEat() {
   setTimeout(() => tone(990, 0.07, "square", 0.08), 55);
 }
 
+function playGoldEat() {
+  // Bright triumphant arpeggio for the golden bonus block.
+  tone(660, 0.07, "square", 0.09);
+  setTimeout(() => tone(880, 0.07, "square", 0.09), 55);
+  setTimeout(() => tone(1320, 0.12, "square", 0.09), 110);
+}
+
+function playDietEat() {
+  // Light descending blip for the diet block shrinking the snake.
+  tone(520, 0.06, "triangle", 0.08);
+  setTimeout(() => tone(360, 0.09, "triangle", 0.07), 55);
+}
+
 function playCrash() {
   // Short descending flat buzz for wall/self collisions.
   tone(300, 0.26, "square", 0.09, 80);
@@ -532,6 +549,15 @@ function stopBgm() {
   }
 }
 
+const GOLD_SCORE = 20;
+const GOLD_LIFESPAN_MS = 6000;
+const GOLD_SPAWN_CHANCE = 0.45;
+
+const DIET_SCORE = 10;
+const DIET_LIFESPAN_MS = 7000;
+const DIET_SPAWN_CHANCE = 0.35;
+const MIN_SNAKE_LENGTH = 3;
+
 function reset() {
   const midX = Math.floor(COLS / 2);
   const midY = 14;
@@ -545,6 +571,8 @@ function reset() {
   score = 0;
   applyStepMs();
   scoreEl.textContent = "0";
+  goldFood = null;
+  dietFood = null;
   placeFood();
 }
 
@@ -558,6 +586,45 @@ function placeFood() {
     };
   } while (taken.has(`${next.x},${next.y}`));
   food = next;
+}
+
+function cornerPositions() {
+  return [
+    { x: 0, y: 0 },
+    { x: COLS - 1, y: 0 },
+    { x: 0, y: ROWS - 1 },
+    { x: COLS - 1, y: ROWS - 1 },
+  ];
+}
+
+function maybeSpawnGoldFood() {
+  if (goldFood || Math.random() > GOLD_SPAWN_CHANCE) return;
+  const taken = new Set(snake.map((p) => `${p.x},${p.y}`));
+  taken.add(`${food.x},${food.y}`);
+  if (dietFood) taken.add(`${dietFood.x},${dietFood.y}`);
+  const candidates = cornerPositions().filter((c) => !taken.has(`${c.x},${c.y}`));
+  if (!candidates.length) return;
+  goldFood = candidates[Math.floor(Math.random() * candidates.length)];
+  goldFoodExpiresAt = performance.now() + GOLD_LIFESPAN_MS;
+}
+
+function maybeSpawnDietFood() {
+  if (dietFood || snake.length <= MIN_SNAKE_LENGTH || Math.random() > DIET_SPAWN_CHANCE) return;
+  const taken = new Set(snake.map((p) => `${p.x},${p.y}`));
+  taken.add(`${food.x},${food.y}`);
+  if (goldFood) taken.add(`${goldFood.x},${goldFood.y}`);
+  let next;
+  let attempts = 0;
+  do {
+    next = {
+      x: Math.floor(Math.random() * COLS),
+      y: Math.floor(Math.random() * ROWS),
+    };
+    attempts += 1;
+  } while (taken.has(`${next.x},${next.y}`) && attempts < 50);
+  if (taken.has(`${next.x},${next.y}`)) return;
+  dietFood = next;
+  dietFoodExpiresAt = performance.now() + DIET_LIFESPAN_MS;
 }
 
 function same(a, b) {
@@ -578,12 +645,29 @@ function tick() {
     return;
   }
 
+  const prevLength = snake.length;
   snake.unshift(head);
-  if (same(head, food)) {
+  if (goldFood && same(head, goldFood)) {
+    score += GOLD_SCORE;
+    scoreEl.textContent = String(score);
+    applyStepMs();
+    goldFood = null;
+    playGoldEat();
+  } else if (dietFood && same(head, dietFood)) {
+    score += DIET_SCORE;
+    scoreEl.textContent = String(score);
+    applyStepMs();
+    dietFood = null;
+    const targetLength = Math.max(MIN_SNAKE_LENGTH, prevLength - 1);
+    while (snake.length > targetLength) snake.pop();
+    playDietEat();
+  } else if (same(head, food)) {
     score += 10;
     scoreEl.textContent = String(score);
     applyStepMs();
     placeFood();
+    maybeSpawnGoldFood();
+    maybeSpawnDietFood();
     playEat();
   } else {
     snake.pop();
@@ -619,6 +703,76 @@ function drawCell(x, y, fill, glow) {
   ctx.roundRect(px, py, size, size, 5);
   ctx.fill();
   ctx.shadowBlur = 0;
+}
+
+function drawGoldFood(now) {
+  const cx = goldFood.x * cell + cell / 2;
+  const cy = goldFood.y * cell + cell / 2;
+  const remaining = Math.max(0, goldFoodExpiresAt - now) / GOLD_LIFESPAN_MS;
+  const pulse = 1 + Math.sin(now / 90) * 0.06;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 214, 92, 0.85)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(cx, cy, cell * 0.48, -Math.PI / 2, -Math.PI / 2 + remaining * Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(pulse, pulse);
+  ctx.fillStyle = "#ffd65c";
+  ctx.shadowColor = "#ffd65c";
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.roundRect(-cell * 0.34, -cell * 0.34, cell * 0.68, cell * 0.68, 6);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(120, 76, 0, 0.4)";
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDietFood(now) {
+  const cx = dietFood.x * cell + cell / 2;
+  const cy = dietFood.y * cell + cell / 2;
+  const remaining = Math.max(0, dietFoodExpiresAt - now) / DIET_LIFESPAN_MS;
+  const pulse = 1 + Math.sin(now / 90) * 0.06;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(126, 217, 87, 0.85)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(cx, cy, cell * 0.48, -Math.PI / 2, -Math.PI / 2 + remaining * Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(pulse, pulse);
+  ctx.fillStyle = "#7ed957";
+  ctx.shadowColor = "#7ed957";
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.arc(0, 0, cell * 0.34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(20, 70, 10, 0.4)";
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  ctx.strokeStyle = "#0e2b06";
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-cell * 0.16, 0);
+  ctx.lineTo(cell * 0.16, 0);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawHead(part) {
@@ -714,6 +868,9 @@ function draw(now) {
 
   drawCell(food.x, food.y, "#ff5d7a", true);
 
+  if (goldFood) drawGoldFood(now || performance.now());
+  if (dietFood) drawDietFood(now || performance.now());
+
   const hueShift = (now || 0) / 20;
   const tailIndex = snake.length - 1;
   snake.forEach((part, i) => {
@@ -734,6 +891,12 @@ function loop(now) {
     if (now - lastTick >= stepMs) {
       lastTick = now;
       tick();
+    }
+    if (goldFood && now > goldFoodExpiresAt) {
+      goldFood = null;
+    }
+    if (dietFood && now > dietFoodExpiresAt) {
+      dietFood = null;
     }
   }
   draw(now);
