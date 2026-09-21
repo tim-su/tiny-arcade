@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snake</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  </head>
+  <body>
+    <div class="brand-mark" aria-hidden="true">🐍 Tim's<sup>&trade;</sup></div>
+    <main class="shell">
+      <header class="hud">
+        <div>
+          <p class="kicker">tiny arcade</p>
+          <h1>Snake</h1>
+        </div>
+        <div class="scores">
+          <div>
+            <span>Score</span>
+            <strong id="score">0</strong>
+          </div>
+          <div>
+            <span>Best</span>
+            <strong id="best">0</strong>
+          </div>
+          <button id="mute" class="mute" type="button" aria-pressed="false">Sound on</button>
+          <button id="musicMute" class="mute" type="button" aria-pressed="false">Music on</button>
+          <button id="fullscreen" class="mute fullscreen-btn" type="button" aria-pressed="false">Full screen</button>
+          <button id="refresh" class="mute fullscreen-btn" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <div class="speed-meter">
+        <span class="speed-meter-label">Speed</span>
+        <div class="speed-meter-scale">
+          <div class="speed-meter-track">
+            <div class="speed-meter-fill" id="speedMeterFill"></div>
+          </div>
+          <div class="speed-meter-ticks" aria-hidden="true">
+            <span>20</span>
+            <span>100</span>
+          </div>
+        </div>
+        <strong id="speedMeterValue">20</strong>
+      </div>
+
+      <div class="stage">
+        <canvas id="board" width="480" height="480" aria-label="Snake game board"></canvas>
+        <div id="overlay" class="overlay">
+          <h2 id="overlay-title">Snake</h2>
+          <p id="overlay-copy">Eat the glowing bites. Don’t run into walls or yourself. First key starts moving.</p>
+          <p class="hint">Arrow keys or WASD · Enter to start or pause</p>
+          <button id="start" type="button">Play</button>
+        </div>
+      </div>
+
+      <div class="joystick-wrap" id="joystickWrap" aria-hidden="true">
+        <div class="joystick" id="joystick">
+          <div class="joystick-knob" id="joystickKnob"></div>
+        </div>
+      </div>
+
+      <div class="speed speed-desktop">
+        <div class="speed-label">
+          <span>Speed</span>
+        </div>
+        <div class="speed-buttons" id="speedButtons" role="group" aria-label="Speed">
+          <button type="button" class="speed-btn" data-speed="1">1</button>
+          <button type="button" class="speed-btn" data-speed="2">2</button>
+          <button type="button" class="speed-btn" data-speed="3">3</button>
+        </div>
+      </div>
+
+      <div class="speed speed-mobile">
+        <div class="speed-label">
+          <label for="speed">Speed</label>
+          <strong id="speed-value">2</strong>
+        </div>
+        <input id="speed" type="range" min="1" max="3" step="1" value="2" aria-valuemin="1" aria-valuemax="3" />
+        <div class="speed-marks" aria-hidden="true">
+          <span>1</span>
+          <span>2</span>
+          <span>3</span>
+        </div>
+      </div>
+
+      <div class="speed">
+        <div class="speed-label">
+          <span>Music</span>
+        </div>
+        <div class="speed-buttons" id="musicButtons" role="group" aria-label="Music">
+          <button type="button" class="speed-btn" data-track="arcade">Arcade</button>
+          <button type="button" class="speed-btn" data-track="chill">Chill</button>
+          <button type="button" class="speed-btn" data-track="retro">Retro</button>
+          <button type="button" class="speed-btn" data-track="aaa">AAA</button>
+          <button type="button" class="speed-btn" data-track="jarcade">J-Arcade</button>
+        </div>
+      </div>
+
+      <div class="qr-panel" id="qrPanel">
+        <p class="qr-label">Scan to play on your phone</p>
+        <div id="qrcode" class="qrcode"></div>
+        <p class="qr-url" id="qrUrl"></p>
+      </div>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
